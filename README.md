@@ -67,6 +67,15 @@ lib/fa.ts            تبدیل ارقام به فارسی
 | [DEVELOPER_EXECUTION.md](docs/DEVELOPER_EXECUTION.md) | بستهٔ اجرایی توسعه‌دهنده |
 | [DEPLOYMENT_AND_OPERATIONS.md](docs/DEPLOYMENT_AND_OPERATIONS.md) | انتشار، پایش، پشتیبان |
 
+## فونت‌ها
+
+| فونت | وضعیت | مجوز |
+|---|---|---|
+| Vazirmatn v33.003 | فونت فعال رابط (self-host از بستهٔ `@fontsource-variable/vazirmatn`؛ همان نسخهٔ ٣٣.٠٠٣) | SIL OFL 1.1 — متن کامل در [`public/fonts/Vazirmatn-OFL.txt`](public/fonts/Vazirmatn-OFL.txt) |
+| Kalameh | فونت برند طبق مشخصات مالک؛ فایل و مجوز تحویل نشده | تجاری — تا تحویل فایل مجاز، استفاده نمی‌شود |
+
+فونت از CDN بارگیری نمی‌شود؛ فایل‌ها همراه خروجی ساخته می‌شوند.
+
 ## وضعیت
 
 - [x] سیستم طراحی فارسی/RTL
