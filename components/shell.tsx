@@ -82,10 +82,14 @@ const navItems = [
 export function SiteHeader() {
   const pathname = usePathname();
 
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const isActive = (href: string) => {
-    const clean = href.replace(/\/$/, '');
-    const current = (pathname || '/').replace(/\/$/, '') || '/';
-    if (clean === '') return current === '';
+    const raw = pathname || '/';
+    // usePathname روی GitHub Pages شامل basePath است؛ برای مقایسه حذفش می‌کنیم
+    const withoutBase = basePath && raw.startsWith(basePath) ? raw.slice(basePath.length) : raw;
+    const current = withoutBase.replace(/\/$/, '') || '/';
+    const clean = href.replace(/\/$/, '') || '/';
+    if (clean === '/') return current === '/';
     return current === clean || current.startsWith(clean + '/');
   };
 

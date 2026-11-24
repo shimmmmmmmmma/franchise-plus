@@ -4,7 +4,6 @@ import {
   OpportunityCard,
   SectionHead,
   DemoMiniCard,
-  ProfileMiniCard,
   Notice,
 } from '@/components/ui';
 import { BrandMark } from '@/components/shell';
@@ -47,17 +46,30 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="hero__visual" aria-hidden="false">
-            <span className="hero__ring" aria-hidden="true" />
-            <span className="hero__fmark" aria-hidden="true">
-              <BrandMark size={190} />
-            </span>
-            <div className="hero__cards">
-              <ProfileMiniCard />
+          <div className="hero__visual">
+            <div className="plate" aria-hidden="true">
+              <div className="plate__caption">
+                <span>پالت مرجع · دادهٔ نمایشی</span>
+                <span className="plate__swatches">
+                  0A1011 · 0D2A49 · 2D6C92 · 3F4C45 · CB9B43 · A9C7B3
+                </span>
+              </div>
+
+              <div className="plate__art">
+                <span className="band band--ink" />
+                <span className="band band--navy" />
+                <span className="band band--blue" />
+                <span className="band band--slate" />
+                <span className="band band--gold" />
+                <span className="band band--sage" />
+                <span className="plate__mark">
+                  <BrandMark size={104} tone="light" />
+                </span>
+              </div>
+            </div>
+
+            <div className="hero__float">
               <DemoMiniCard />
-              <p className="micro muted" style={{ textAlign: 'center' }}>
-                نمونهٔ نمایشی پرونده و فرصت — دادهٔ ساختگی
-              </p>
             </div>
           </div>
         </div>
