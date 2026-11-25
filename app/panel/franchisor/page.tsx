@@ -27,6 +27,7 @@ export default function FranchisorPanel() {
       title="پیشنهاد برند: خرده‌فروشی بارانا"
       subtitle="شناسهٔ پیشنهاد FP-۱۰۳۹ · ثبت‌شده در ۱۴۰۵/۰۸/۲۰"
       actions={<StatusBadge kind="wait">در انتظار بررسی مدارک</StatusBadge>}
+      actionsLabel="وضعیت پیشنهاد"
     >
       <div style={{ marginBottom: '1.3rem' }}>
         <Notice kind="warn" title="مرز دسترسی">

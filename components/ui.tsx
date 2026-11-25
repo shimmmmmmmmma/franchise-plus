@@ -55,7 +55,7 @@ export function Notice({
 }) {
   return (
     <div className={`notice notice--${kind}`} role="note">
-      <span aria-hidden="true">{kind === 'ok' ? '✓' : kind === 'warn' ? '!' : 'i'}</span>
+      <span className="notice__mark" aria-hidden="true" />
       <span>
         {title ? <b style={{ display: 'block', marginBottom: '0.15rem' }}>{title}</b> : null}
         {children}

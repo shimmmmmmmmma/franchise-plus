@@ -15,6 +15,7 @@ export function PanelShell({
   title,
   subtitle,
   actions,
+  actionsLabel,
   children,
 }: {
   sideTitle: string;
@@ -22,6 +23,7 @@ export function PanelShell({
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  actionsLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -69,7 +71,12 @@ export function PanelShell({
               </p>
             ) : null}
           </div>
-          {actions ? <div className="row gap-2 wrap">{actions}</div> : null}
+          {actions ? (
+            <div className="panel__head-actions">
+              {actionsLabel ? <span className="panel__head-label">{actionsLabel}</span> : null}
+              <div className="row gap-2 wrap">{actions}</div>
+            </div>
+          ) : null}
         </div>
         {children}
       </div>
