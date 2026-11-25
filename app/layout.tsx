@@ -18,6 +18,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
+      <head>
+        {/* کلاس `js` پیش از رندر اضافه می‌شود؛ بدون آن همهٔ محتوا دیده می‌شود */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "document.documentElement.classList.add('js');",
+          }}
+        />
+      </head>
       <body>
         <a href="#main" className="sr-only">
           پرش به محتوای اصلی

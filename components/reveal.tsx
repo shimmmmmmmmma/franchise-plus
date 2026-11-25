@@ -4,6 +4,10 @@ import { useEffect, useRef } from 'react';
 
 /**
  * ظاهر شدن هدفمند هنگام اسکرول — بدون کتابخانه، با احترام به prefers-reduced-motion.
+ *
+ * اصل مهم: محتوا پیش‌فرض دیده می‌شود. پنهان‌سازی فقط وقتی اعمال می‌شود که
+ * جاوااسکریپت واقعاً در حال اجرا باشد (کلاس `js` روی <html>) و عنصر هنوز
+ * به دید نرسیده باشد. اگر اسکریپت دیر برسد، چیزی از دست نمی‌رود.
  */
 export function Reveal({
   children,
@@ -20,8 +24,20 @@ export function Reveal({
     const el = ref.current;
     if (!el) return;
 
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const show = () => {
       el.dataset.shown = 'true';
+    };
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      show();
+      return;
+    }
+
+    // اگر همان لحظه در دید است، بدون تأخیر نشان بده (بدون پرش بصری)
+    const rect = el.getBoundingClientRect();
+    const inView = rect.top < window.innerHeight * 0.92 && rect.bottom > 0;
+    if (inView) {
+      window.setTimeout(show, delay);
       return;
     }
 
@@ -29,17 +45,22 @@ export function Reveal({
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
-          window.setTimeout(() => {
-            el.dataset.shown = 'true';
-          }, delay);
+          window.setTimeout(show, delay);
           io.unobserve(el);
         }
       },
-      { rootMargin: '0px 0px -12% 0px', threshold: 0.08 },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.05 },
     );
 
     io.observe(el);
-    return () => io.disconnect();
+
+    // شبکهٔ اطمینان: اگر observe به هر دلیلی اجرا نشد، محتوا پنهان نماند
+    const safety = window.setTimeout(show, 2500);
+
+    return () => {
+      io.disconnect();
+      window.clearTimeout(safety);
+    };
   }, [delay]);
 
   return (

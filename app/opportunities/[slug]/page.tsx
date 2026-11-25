@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { getOpportunity, opportunities } from '@/lib/data';
 import { faNum } from '@/lib/fa';
 import { Crumbs, Notice, StatusBadge, SectionHead } from '@/components/ui';
+import { OpportunityLedger } from '@/components/ledger';
+import { Reveal } from '@/components/reveal';
 
 export function generateStaticParams() {
   return opportunities.map((item) => ({ slug: item.slug }));
@@ -116,13 +118,11 @@ export default async function OpportunityDetail({
             <h2 className="h3" style={{ marginBottom: '0.9rem' }}>
               پشتیبانی واگذارکننده
             </h2>
-            <div className="grid grid--2">
+            <div className="spec-grid">
               {item.support.map((row) => (
-                <div className="card-flat" key={row.key} style={{ padding: '0.9rem 1rem' }}>
-                  <div className="micro muted">{row.key}</div>
-                  <div className="small" style={{ fontWeight: 500, marginTop: '0.2rem' }}>
-                    {row.value}
-                  </div>
+                <div className="spec-grid__item" key={row.key}>
+                  <div className="spec-grid__k">{row.key}</div>
+                  <div className="spec-grid__v">{row.value}</div>
                 </div>
               ))}
             </div>
@@ -218,39 +218,12 @@ export default async function OpportunityDetail({
           title="در همین صنعت"
           action={{ href: '/opportunities/', label: 'همهٔ فرصت‌ها' }}
         />
-        <div className="grid grid--3" style={{ paddingBottom: '1rem' }}>
-          {opportunities
-            .filter((o) => o.slug !== item.slug)
-            .slice(0, 3)
-            .map((o) => (
-              <article className="opp-card" key={o.slug}>
-                <div className="opp-card__top">
-                  <div className="opp-card__brand">
-                    <span className="opp-card__logo" aria-hidden="true">
-                      {o.monogram}
-                    </span>
-                    <div>
-                      <div className="opp-card__name">{o.brand}</div>
-                      <div className="opp-card__sector">
-                        {o.sector} · {o.city}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="fact">
-                  <span className="fact__k">سرمایهٔ اولیه</span>
-                  <span className="fact__v">{o.investment}</span>
-                </div>
-                <div className="opp-card__foot">
-                  <span className="micro muted">{faNum(o.branches)} شعبه</span>
-                  <Link href={`/opportunities/${o.slug}/`} className="opp-card__cta">
-                    جزئیات
-                    <span aria-hidden="true">←</span>
-                  </Link>
-                </div>
-              </article>
-            ))}
-        </div>
+        <Reveal>
+          <OpportunityLedger
+            items={opportunities.filter((o) => o.slug !== item.slug).slice(0, 3)}
+            showHead={false}
+          />
+        </Reveal>
       </section>
     </div>
   );

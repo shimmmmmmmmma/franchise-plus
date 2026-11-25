@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 /* ------------------------------------------------------------------ */
 /* Brand mark — حرف F انگلیسی با علامت + در گوشهٔ پایین                  */
@@ -81,6 +82,7 @@ const navItems = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const isActive = (href: string) => {
@@ -92,6 +94,28 @@ export function SiteHeader() {
     if (clean === '/') return current === '/';
     return current === clean || current.startsWith(clean + '/');
   };
+
+  // بستن منو با تغییر مسیر
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  // قفل اسکرول و بستن با Escape
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   return (
     <>
@@ -127,8 +151,73 @@ export function SiteHeader() {
               شروع پرونده
             </Link>
           </div>
+
+          <button
+            type="button"
+            className="menu-toggle"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-nav"
+            aria-label={menuOpen ? 'بستن منو' : 'باز کردن منو'}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <span className="menu-toggle__bar" aria-hidden="true" />
+            <span className="menu-toggle__bar" aria-hidden="true" />
+            <span className="menu-toggle__label" aria-hidden="true">
+              منو
+            </span>
+          </button>
         </div>
       </header>
+
+      <div className="drawer" id="mobile-nav" data-open={menuOpen} aria-hidden={!menuOpen}>
+        <div className="drawer__head container">
+          <span className="micro" style={{ letterSpacing: '0.14em', color: 'var(--muted-2)' }}>
+            منوی اصلی
+          </span>
+          <button
+            type="button"
+            className="drawer__close"
+            onClick={() => setMenuOpen(false)}
+            aria-label="بستن منو"
+          >
+            ×
+          </button>
+        </div>
+
+        <nav className="container" aria-label="ناوبری موبایل">
+          <ul className="drawer__list">
+            {navItems.map((item, i) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="drawer__link"
+                  data-active={isActive(item.href)}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
+                  tabIndex={menuOpen ? 0 : -1}
+                >
+                  <span className="drawer__n">{`۰${i + 1}`.replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)])}</span>
+                  <span className="drawer__label">{item.label}</span>
+                  <span className="drawer__arrow" aria-hidden="true">
+                    ←
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <div className="drawer__cta">
+            <Link href="/join/" className="btn btn--primary" tabIndex={menuOpen ? 0 : -1}>
+              شروع پرونده
+              <span className="btn__arrow" aria-hidden="true">
+                ←
+              </span>
+            </Link>
+            <Link href="/join/" className="btn btn--ghost" tabIndex={menuOpen ? 0 : -1}>
+              ورود به حساب
+            </Link>
+          </div>
+        </nav>
+      </div>
     </>
   );
 }
