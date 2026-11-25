@@ -28,41 +28,21 @@ export default function JoinPage() {
     <div className="container" style={{ paddingBottom: '3.5rem' }}>
       <Crumbs items={[{ href: '/', label: 'خانه' }, { label: 'شروع پرونده' }]} />
 
-      <header style={{ paddingBottom: '1.8rem' }}>
-        <span className="eyebrow">ثبت‌نام</span>
-        <h1 className="h1" style={{ marginTop: '0.7rem' }}>
+      <header className="page-head">
+        <span className="eyebrow">ثبت‌نام · گام ۰۱</span>
+        <h1 className="h1" style={{ marginTop: '0.8rem' }}>
           پرونده‌ات را بساز
         </h1>
-        <p className="lead" style={{ marginTop: '0.6rem' }}>
+        <p className="lead" style={{ marginTop: '0.7rem' }}>
           اول نقش را انتخاب کن. فرم‌ها، مدارک و مراحل بررسی برای گیرنده و واگذارکننده متفاوت است.
         </p>
       </header>
 
-      <ol className="row wrap gap-3" style={{ marginBottom: '1.6rem', fontSize: 'var(--fs-micro)' }}>
+      <ol className="steps-line">
         {['انتخاب نقش', 'اطلاعات پایه', 'مدارک و بررسی'].map((s, i) => (
-          <li
-            key={s}
-            className="row gap-2"
-            style={{
-              color: step === i + 1 ? 'var(--bronze)' : 'var(--muted-2)',
-              fontWeight: step === i + 1 ? 600 : 400,
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                display: 'grid',
-                placeItems: 'center',
-                border: '1px solid currentColor',
-                fontSize: '0.68rem',
-              }}
-            >
-              {i + 1}
-            </span>
-            {s}
+          <li key={s} data-state={step === i + 1 ? 'active' : step > i + 1 ? 'done' : 'next'}>
+            <span className="steps-line__n">{['۰۱', '۰۲', '۰۳'][i]}</span>
+            <span>{s}</span>
           </li>
         ))}
       </ol>
@@ -76,14 +56,13 @@ export default function JoinPage() {
               aria-pressed={role === 'receiver'}
               onClick={() => setRole('receiver')}
             >
-              <span className="role-card__icon" aria-hidden="true">
-                ◇
-              </span>
-              <span className="h3">گیرندهٔ نمایندگی هستم</span>
-              <span className="small muted" style={{ lineHeight: 1.9 }}>
+              <span className="role-card__n">۰۱</span>
+              <span className="role-card__title">گیرندهٔ نمایندگی هستم</span>
+              <span className="role-card__body">
                 می‌خواهم نمایندگی یک برند را بگیرم. بودجه، منطقه و مدارکم را ثبت می‌کنم و
                 فرصت‌های هم‌خوان را می‌بینم.
               </span>
+              <span className="role-card__pick" aria-hidden="true" />
             </button>
 
             <button
@@ -92,14 +71,13 @@ export default function JoinPage() {
               aria-pressed={role === 'franchisor'}
               onClick={() => setRole('franchisor')}
             >
-              <span className="role-card__icon" aria-hidden="true">
-                ▣
-              </span>
-              <span className="h3">واگذارکننده هستم</span>
-              <span className="small muted" style={{ lineHeight: 1.9 }}>
+              <span className="role-card__n">۰۲</span>
+              <span className="role-card__title">واگذارکننده هستم</span>
+              <span className="role-card__body">
                 برند دارم و می‌خواهم نمایندگی واگذار کنم. اطلاعات برند را برای بررسی می‌فرستم؛
                 انتشار با مدیر است.
               </span>
+              <span className="role-card__pick" aria-hidden="true" />
             </button>
           </div>
 

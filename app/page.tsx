@@ -1,34 +1,46 @@
 import Link from 'next/link';
-import { industries, opportunities } from '@/lib/data';
-import {
-  OpportunityCard,
-  SectionHead,
-  DemoMiniCard,
-  Notice,
-} from '@/components/ui';
+import { opportunities } from '@/lib/data';
+import { OpportunityLedger } from '@/components/ledger';
+import { Reveal } from '@/components/reveal';
+import { SectionHead, DemoMiniCard, Notice } from '@/components/ui';
 import { BrandMark } from '@/components/shell';
+import { faNum } from '@/lib/fa';
 
 export default function HomePage() {
   return (
     <>
+      {/* ---------------- MASTHEAD ---------------- */}
+      <div className="masthead">
+        <div className="container masthead__row">
+          <span>پروندهٔ ویژه · واگذاری نمایندگی</span>
+          <span className="nowrap">
+            پاییز ۱۴۰۵ <i className="masthead__sep" aria-hidden="true" /> شمارهٔ ۰۱
+          </span>
+          <span className="nowrap">
+            بازار ایران <i className="masthead__sep" aria-hidden="true" /> نسخهٔ نمایشی
+          </span>
+        </div>
+      </div>
+
       {/* ---------------- HERO ---------------- */}
-      <section className="hero section--plain">
+      <section className="hero">
         <div className="container hero__grid">
           <div className="hero__copy">
-            <span className="eyebrow">پلتفرم واگذاری نمایندگی · ایران</span>
+            <div className="issue-line">پلتفرم واگذاری نمایندگی · ایران</div>
 
-            <h1 className="display">
-              واگذاری نمایندگی،
-              <br />
-              با <em>پروندهٔ بررسی‌شده</em>.
+            <h1 className="hero__title">
+              <span className="hero__title-top">واگذاری نمایندگی</span>
+              <span className="hero__title-main">
+                با پروندهٔ <em>بررسی‌شده</em>
+              </span>
             </h1>
 
             <p className="lead">
-              فرانچایز پلاس یک سایت آگهی نیست. پروندهٔ هر دو طرف ساخته و بررسی می‌شود، هویت و
-              مدارک احراز می‌شود، و گفت‌وگو فقط بعد از تأیید تیم باز می‌شود.
+              فرانچایز پلاس سایت آگهی نیست. پروندهٔ هر دو طرف ساخته و بررسی می‌شود، هویت و مدارک
+              احراز می‌شود، و گفت‌وگو فقط بعد از تأیید تیم باز می‌شود.
             </p>
 
-            <div className="hero__actions">
+            <div className="row gap-2 wrap">
               <Link href="/opportunities/" className="btn btn--primary">
                 دیدن فرصت‌های نمایندگی
                 <span className="btn__arrow" aria-hidden="true">
@@ -48,6 +60,8 @@ export default function HomePage() {
 
           <div className="hero__visual">
             <div className="plate" aria-hidden="true">
+              <span className="hero__spine">FRANCHISE PLUS · 1405</span>
+
               <div className="plate__caption">
                 <span>پالت مرجع · دادهٔ نمایشی</span>
                 <span className="plate__swatches">
@@ -78,15 +92,17 @@ export default function HomePage() {
       {/* ---------------- STEPS (dark) ---------------- */}
       <section className="section section--dark">
         <div className="container">
-          <div style={{ maxWidth: '58ch', marginBottom: '2.6rem' }}>
-            <span className="eyebrow">مسیر کار</span>
-            <h2 className="h2" style={{ marginTop: '0.8rem', color: '#F5F1E9' }}>
-              سه گام، بدون آگهی‌بازی و بدون واسطهٔ ناشناس
-            </h2>
-            <p className="muted small" style={{ marginTop: '0.7rem' }}>
-              هر گام خروجی مشخصی دارد و تا گام قبل تأیید نشود، گام بعد باز نمی‌شود.
-            </p>
-          </div>
+          <Reveal>
+            <div style={{ maxWidth: '58ch', marginBottom: '2.6rem' }}>
+              <span className="eyebrow">مسیر کار</span>
+              <h2 className="h2" style={{ marginTop: '0.8rem', color: '#F5F1E9' }}>
+                سه گام، بدون آگهی‌بازی و بدون واسطهٔ ناشناس
+              </h2>
+              <p className="muted small" style={{ marginTop: '0.7rem' }}>
+                هر گام خروجی مشخصی دارد و تا گام قبل تأیید نشود، گام بعد باز نمی‌شود.
+              </p>
+            </div>
+          </Reveal>
 
           <ol className="steps">
             <li className="step">
@@ -117,34 +133,40 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------------- OPPORTUNITIES ---------------- */}
+      {/* ---------------- OPPORTUNITIES — LEDGER ---------------- */}
       <section className="section">
         <div className="container">
           <SectionHead
             eyebrow="فرصت‌ها"
             title="فرصت‌های منتشرشده"
-            body="فقط فرصت‌هایی که مدیر تأیید و منتشر کرده است اینجا دیده می‌شوند. هر فرصت اطلاعات مالی، شرایط و مدارک موردنیاز را شفاف اعلام می‌کند."
+            body="فقط فرصتی که مدیر تأیید و منتشر کرده باشد اینجا می‌آید. هر ردیف، اطلاعات مالی و شرایط را شفاف اعلام می‌کند."
             action={{ href: '/opportunities/', label: 'همهٔ فرصت‌ها' }}
           />
 
-          <div className="chips" style={{ marginBottom: '1.4rem' }} aria-hidden="true">
-            {industries.slice(0, 6).map((item, i) => (
-              <span key={item} className="chip" aria-pressed={i === 0}>
-                {item}
-              </span>
-            ))}
-          </div>
+          <Reveal>
+            <OpportunityLedger items={opportunities} />
+          </Reveal>
 
-          <div className="grid grid--3">
-            {opportunities.slice(0, 3).map((item) => (
-              <OpportunityCard key={item.slug} item={item} />
-            ))}
-          </div>
+          <p className="micro muted" style={{ marginTop: '0.9rem' }}>
+            ردیف‌ها نمونهٔ طراحی‌اند؛ هیچ برند واقعی در این صفحه نیست.
+          </p>
+        </div>
+      </section>
+
+      {/* ---------------- PULL QUOTE ---------------- */}
+      <section className="pullquote">
+        <div className="container">
+          <Reveal>
+            <p className="pullquote__text">
+              در بازار نمایندگی، اعتماد گران‌ترین کالاست؛ نه تعداد آگهی.
+            </p>
+            <div className="pullquote__cite">اصل طراحی محصول · فرانچایز پلاس</div>
+          </Reveal>
         </div>
       </section>
 
       {/* ---------------- WHY MANAGED ---------------- */}
-      <section className="section section--bone">
+      <section className="section">
         <div className="container grid grid--2" style={{ gap: 'clamp(2rem, 5vw, 4rem)' }}>
           <div>
             <span className="eyebrow">مدل مدیریت‌شده</span>
@@ -165,52 +187,38 @@ export default function HomePage() {
           </div>
 
           <div>
-            <div className="feature">
-              <span className="feature__n">۰۱</span>
-              <div>
-                <div className="feature__title">دسترسی بر اساس نقش و پرونده</div>
-                <p className="feature__body">
-                  مجوز = نقش + مالکیت پرونده + تخصیص کارمند + هدف دسترسی. کنترل رابط کاربری کافی
-                  نیست؛ هر درخواست API هم بررسی می‌شود.
-                </p>
+            {[
+              {
+                t: 'دسترسی بر اساس نقش و پرونده',
+                b: 'مجوز = نقش + مالکیت پرونده + تخصیص کارمند + هدف دسترسی. کنترل رابط کاربری کافی نیست؛ هر درخواست API هم بررسی می‌شود.',
+              },
+              {
+                t: 'تأیید پرداخت از سمت سرور',
+                b: 'بازگشت کاربر از درگاه به‌تنهایی اثبات پرداخت نیست. تراکنش یکتا، تطبیق مبلغ با فاکتور داخلی و جلوگیری از ثبت تکراری، شرط ثبت مالی است.',
+              },
+              {
+                t: 'انتشار فقط با تأیید مدیر',
+                b: 'رکورد رسمی برند و فرصت را فقط Admin می‌سازد. هیچ دکمه یا مسیر مستقیمی برای انتشار توسط واگذارکننده وجود ندارد.',
+              },
+              {
+                t: 'تطبیق قابل توضیح',
+                b: 'قواعد تطبیق نسخه‌دار و شفاف‌اند: بودجه، منطقه، صنعت و آمادگی. هیچ‌کس به‌صورت خودکار رد نمی‌شود و هیچ تضمینی برای موفقیت داده نمی‌شود.',
+              },
+            ].map((f, i) => (
+              <div className="feature" key={f.t}>
+                <span className="feature__n">{faNum(String(i + 1).padStart(2, '0'))}</span>
+                <div>
+                  <div className="feature__title">{f.t}</div>
+                  <p className="feature__body">{f.b}</p>
+                </div>
               </div>
-            </div>
-            <div className="feature">
-              <span className="feature__n">۰۲</span>
-              <div>
-                <div className="feature__title">تأیید پرداخت از سمت سرور</div>
-                <p className="feature__body">
-                  بازگشت کاربر از درگاه به‌تنهایی اثبات پرداخت نیست. تراکنش یکتا، تطبیق مبلغ با
-                  فاکتور داخلی و جلوگیری از ثبت تکراری، شرط ثبت مالی است.
-                </p>
-              </div>
-            </div>
-            <div className="feature">
-              <span className="feature__n">۰۳</span>
-              <div>
-                <div className="feature__title">انتشار فقط با تأیید مدیر</div>
-                <p className="feature__body">
-                  رکورد رسمی برند و فرصت را فقط Admin می‌سازد. هیچ دکمه یا مسیر مستقیمی برای انتشار
-                  توسط واگذارکننده وجود ندارد.
-                </p>
-              </div>
-            </div>
-            <div className="feature">
-              <span className="feature__n">۰۴</span>
-              <div>
-                <div className="feature__title">تطبیق قابل توضیح</div>
-                <p className="feature__body">
-                  قواعد تطبیق نسخه‌دار و شفاف‌اند: بودجه، منطقه، صنعت و آمادگی. هیچ‌کس به‌صورت
-                  خودکار رد نمی‌شود و هیچ تضمینی برای موفقیت داده نمی‌شود.
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ---------------- SCOPE HONESTY ---------------- */}
-      <section className="section">
+      <section className="section section--bone">
         <div className="container">
           <SectionHead
             eyebrow="وضعیت این نسخه"

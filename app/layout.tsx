@@ -1,5 +1,11 @@
 import type { Metadata } from 'next';
 import '@fontsource-variable/vazirmatn';
+import '@fontsource/estedad/400.css';
+import '@fontsource/estedad/500.css';
+import '@fontsource/estedad/600.css';
+import '@fontsource/estedad/700.css';
+import '@fontsource/estedad/800.css';
+import '@fontsource/gulzar/arabic-400.css';
 import './globals.css';
 import { SiteHeader, SiteFooter } from '@/components/shell';
 

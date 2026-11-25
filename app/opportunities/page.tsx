@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { industries, opportunities } from '@/lib/data';
 import { faNum } from '@/lib/fa';
-import { OpportunityCard, Crumbs, Notice } from '@/components/ui';
+import { OpportunityLedger } from '@/components/ledger';
+import { Reveal } from '@/components/reveal';
+import { Crumbs, Notice } from '@/components/ui';
 
 export default function OpportunitiesPage() {
   const [sector, setSector] = useState('همه');
@@ -27,25 +29,18 @@ export default function OpportunitiesPage() {
     <div className="container">
       <Crumbs items={[{ href: '/', label: 'خانه' }, { label: 'فرصت‌های نمایندگی' }]} />
 
-      <header style={{ paddingBottom: '1.6rem' }}>
-        <span className="eyebrow">فرصت‌ها</span>
-        <h1 className="h1" style={{ marginTop: '0.7rem' }}>
-          فرصت‌های نمایندگی منتشرشده
+      <header className="page-head">
+        <span className="eyebrow">فهرست · فرصت‌های نمایندگی</span>
+        <h1 className="h1" style={{ marginTop: '0.8rem' }}>
+          فرصت‌هایی که تیم بررسی کرده است
         </h1>
-        <p className="lead" style={{ marginTop: '0.6rem' }}>
-          فقط فرصت‌هایی که تیم بررسی و مدیر منتشر کرده است. فیلترها بخشی از طراحی‌اند؛ در این
-          پیش‌نمایش، دادهٔ ساختگی نمایش داده می‌شود.
+        <p className="lead" style={{ marginTop: '0.7rem' }}>
+          فهرست زیر بر اساس صنعت فیلتر می‌شود. هر ردیف شامل سرمایهٔ اولیه و حق امتیاز است؛ جزئیات
+          کامل در صفحهٔ هر فرصت است. داده‌ها ساختگی‌اند.
         </p>
       </header>
 
-      <div style={{ paddingBottom: '1rem' }}>
-        <Notice kind="warn">
-          این فهرست نمونه است. هیچ برند واقعی در این صفحه وجود ندارد و اعداد برای آزمون طراحی
-          است.
-        </Notice>
-      </div>
-
-      <div className="row wrap" style={{ justifyContent: 'space-between', gap: '1rem', paddingBlock: '1.2rem' }}>
+      <div className="filterbar">
         <div className="chips" role="group" aria-label="فیلتر صنعت">
           {industries.map((item) => (
             <button
@@ -60,7 +55,7 @@ export default function OpportunitiesPage() {
           ))}
         </div>
 
-        <div style={{ minWidth: '240px', flex: '0 1 260px' }}>
+        <div style={{ minWidth: '220px', flex: '0 1 250px' }}>
           <label className="sr-only" htmlFor="q">
             جست‌وجو در فرصت‌ها
           </label>
@@ -74,7 +69,7 @@ export default function OpportunitiesPage() {
         </div>
       </div>
 
-      <div className="row" style={{ justifyContent: 'space-between', paddingBottom: '1rem' }}>
+      <div className="row filterbar__meta">
         <span className="micro muted">
           {faNum(list.length)} فرصت از {faNum(opportunities.length)} فرصت نمونه
         </span>
@@ -82,7 +77,7 @@ export default function OpportunitiesPage() {
       </div>
 
       {list.length === 0 ? (
-        <div className="card-flat" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <div className="empty">
           <div className="h3" style={{ marginBottom: '0.5rem' }}>
             برای این فیلتر فرصتی پیدا نشد
           </div>
@@ -101,14 +96,12 @@ export default function OpportunitiesPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid--3" style={{ paddingBottom: '3rem' }}>
-          {list.map((item) => (
-            <OpportunityCard key={item.slug} item={item} />
-          ))}
-        </div>
+        <Reveal className="ledger-wrap">
+          <OpportunityLedger items={list} />
+        </Reveal>
       )}
 
-      <div className="banner" style={{ marginBottom: '3rem' }}>
+      <div className="callout-row">
         <div>
           <div className="h3" style={{ marginBottom: '0.4rem' }}>
             فرصت مناسب پیدا نکردی؟
