@@ -60,8 +60,6 @@ export default function HomePage() {
 
           <div className="hero__visual">
             <div className="plate" aria-hidden="true">
-              <span className="hero__spine">FRANCHISE PLUS · 1405</span>
-
               <div className="plate__caption">
                 <span>پالت مرجع · دادهٔ نمایشی</span>
                 <span className="plate__swatches">
