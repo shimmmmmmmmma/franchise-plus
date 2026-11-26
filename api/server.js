@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const Fastify = require('fastify');
 const { PrismaClient } = require('@prisma/client');
 const { authorize } = require('./authz');
+const { writeAuditEvent } = require('./audit');
 const { createMockSmsAdapter } = require('./sms-adapter');
 
 const SESSION_COOKIE = 'fp_session';
@@ -98,6 +99,12 @@ function setSessionCookie(reply, token, env) {
     'SameSite=Lax',
     `Max-Age=${SESSION_TTL_SECONDS}`,
   ];
+  if (env.NODE_ENV === 'production') parts.push('Secure');
+  reply.header('set-cookie', parts.join('; '));
+}
+
+function clearSessionCookie(reply, env) {
+  const parts = [`${SESSION_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0'];
   if (env.NODE_ENV === 'production') parts.push('Secure');
   reply.header('set-cookie', parts.join('; '));
 }
@@ -268,20 +275,50 @@ async function createServer(options = {}) {
     const candidate = otpDigest(otpSecret, challenge.id, challenge.mobileE164, challenge.purpose, code);
     if (!safeEqualHex(candidate, challenge.codeHash)) {
       const locked = challenge.attempts + 1 >= maxOtpAttempts;
-      const result = await prisma.otpChallenge.updateMany({
-        where: {
-          id: challenge.id,
-          attempts: challenge.attempts,
-          consumedAt: null,
-          lockedAt: null,
-          expiresAt: { gt: current },
-        },
-        data: {
-          attempts: { increment: 1 },
-          ...(locked ? { lockedAt: current } : {}),
-        },
-      });
-      if (result.count !== 1) return reply.code(409).send({ error: 'challenge_state_changed' });
+      let failure;
+      try {
+        failure = await prisma.$transaction(async (tx) => {
+          const updated = await tx.otpChallenge.updateMany({
+            where: {
+              id: challenge.id,
+              attempts: challenge.attempts,
+              consumedAt: null,
+              lockedAt: null,
+              expiresAt: { gt: current },
+            },
+            data: {
+              attempts: { increment: 1 },
+              ...(locked ? { lockedAt: current } : {}),
+            },
+          });
+          if (updated.count !== 1) return { error: 'challenge_state_changed' };
+
+          await writeAuditEvent(tx, request, {
+            action: 'auth.otp.failure',
+            entityType: 'OtpChallenge',
+            entityId: challenge.id,
+            result: 'FAILURE',
+            purposeCode: challenge.purpose,
+            after: { attempts: challenge.attempts + 1 },
+          });
+          if (locked) {
+            await writeAuditEvent(tx, request, {
+              action: 'auth.otp.locked',
+              entityType: 'OtpChallenge',
+              entityId: challenge.id,
+              result: 'DENY',
+              purposeCode: challenge.purpose,
+              after: { attempts: challenge.attempts + 1, maxAttempts: maxOtpAttempts },
+            });
+          }
+          return { locked };
+        });
+      } catch (_error) {
+        return reply.code(503).send({ error: 'audit_unavailable' });
+      }
+      if (failure.error === 'challenge_state_changed') {
+        return reply.code(409).send({ error: failure.error });
+      }
       if (locked) return reply.code(423).send({ error: 'otp_locked' });
       return reply.code(401).send({
         error: 'invalid_otp',
@@ -334,10 +371,12 @@ async function createServer(options = {}) {
 
         const activeMemberships = await tx.userRole.findMany({
           where: { userId: user.id, revokedAt: null },
-          select: { roleId: true },
+          select: { roleId: true, role: { select: { code: true } } },
         });
         if (activeMemberships.length === 0) return { error: 'roles_not_assigned' };
-        const initialActiveRoleId = activeMemberships.length === 1 ? activeMemberships[0].roleId : null;
+        const onlyActiveMembership = activeMemberships.length === 1 ? activeMemberships[0] : null;
+        const initialActiveRoleId = onlyActiveMembership?.roleId ?? null;
+        const initialActiveRoleCode = onlyActiveMembership?.role.code ?? null;
 
         const session = await tx.session.create({
           data: {
@@ -350,6 +389,17 @@ async function createServer(options = {}) {
               : null,
             expiresAt: sessionExpiresAt,
           },
+        });
+        await writeAuditEvent(tx, request, {
+          actorUserId: user.id,
+          actorRoleCode: initialActiveRoleCode,
+          action: 'auth.login.success',
+          entityType: 'User',
+          entityId: user.id,
+          result: 'SUCCESS',
+          sessionId: session.id,
+          purposeCode: challenge.purpose,
+          after: { activeRoleCode: initialActiveRoleCode },
         });
         return { userId: user.id, sessionId: session.id };
       });
@@ -369,6 +419,25 @@ async function createServer(options = {}) {
 
     setSessionCookie(reply, rawToken, env);
     return reply.code(200).send({ authenticated: true, userId: result.userId });
+  });
+
+  app.post('/api/auth/logout', async (request, reply) => {
+    if (!(await authorize(request, reply, { authenticatedOnly: true }))) return;
+    reply.header('cache-control', 'no-store');
+
+    const revokedAt = now();
+    const revoked = await prisma.session.updateMany({
+      where: {
+        id: request.auth.sessionId,
+        userId: request.auth.userId,
+        revokedAt: null,
+        expiresAt: { gt: revokedAt },
+      },
+      data: { revokedAt, revokedReason: 'user_logout', lastSeenAt: revokedAt },
+    });
+    clearSessionCookie(reply, env);
+    if (revoked.count !== 1) return reply.code(401).send({ error: 'unauthorized' });
+    return reply.send({ loggedOut: true });
   });
 
   app.get('/api/me', async (request, reply) => {
@@ -397,31 +466,67 @@ async function createServer(options = {}) {
       return reply.code(400).send({ error: 'invalid_role_code' });
     }
 
-    const membership = await prisma.userRole.findFirst({
-      where: {
-        userId: request.auth.userId,
-        revokedAt: null,
-        role: { code: roleCode },
-      },
-      include: { role: true },
-    });
-    if (!membership) return reply.code(403).send({ error: 'role_not_assigned' });
-    if (request.auth.activeRole?.id === membership.role.id) {
-      return reply.code(409).send({ error: 'role_already_active' });
+    let change;
+    try {
+      change = await prisma.$transaction(async (tx) => {
+        const membership = await tx.userRole.findFirst({
+          where: {
+            userId: request.auth.userId,
+            revokedAt: null,
+            role: { code: roleCode },
+          },
+          include: { role: true },
+        });
+        if (!membership) return { error: 'role_not_assigned' };
+
+        const current = now();
+        const session = await tx.session.findFirst({
+          where: {
+            id: request.auth.sessionId,
+            userId: request.auth.userId,
+            revokedAt: null,
+            expiresAt: { gt: current },
+          },
+          include: { activeRole: true },
+        });
+        if (!session) return { error: 'unauthorized' };
+        if (session.activeRoleId === membership.roleId) return { error: 'role_already_active' };
+
+        const updated = await tx.session.updateMany({
+          where: {
+            id: session.id,
+            userId: request.auth.userId,
+            revokedAt: null,
+            expiresAt: { gt: current },
+            activeRoleId: session.activeRoleId,
+          },
+          data: { activeRoleId: membership.roleId, lastSeenAt: current },
+        });
+        if (updated.count !== 1) return { error: 'unauthorized' };
+
+        await writeAuditEvent(tx, request, {
+          actorUserId: request.auth.userId,
+          actorRoleCode: session.activeRole?.code ?? null,
+          action: 'auth.active_role.change',
+          entityType: 'Session',
+          entityId: session.id,
+          result: 'SUCCESS',
+          sessionId: session.id,
+          before: { activeRoleCode: session.activeRole?.code ?? null },
+          after: { activeRoleCode: membership.role.code },
+          changedFields: ['activeRole'],
+        });
+        return { role: membership.role };
+      });
+    } catch (_error) {
+      return reply.code(503).send({ error: 'audit_unavailable' });
     }
 
-    const updated = await prisma.session.updateMany({
-      where: {
-        id: request.auth.sessionId,
-        userId: request.auth.userId,
-        revokedAt: null,
-        expiresAt: { gt: now() },
-      },
-      data: { activeRoleId: membership.role.id, lastSeenAt: now() },
-    });
-    if (updated.count !== 1) return reply.code(401).send({ error: 'unauthorized' });
+    if (change.error === 'role_not_assigned') return reply.code(403).send({ error: change.error });
+    if (change.error === 'role_already_active') return reply.code(409).send({ error: change.error });
+    if (change.error === 'unauthorized') return reply.code(401).send({ error: change.error });
 
-    return reply.send({ activeRole: { code: membership.role.code, titleFa: membership.role.titleFa } });
+    return reply.send({ activeRole: { code: change.role.code, titleFa: change.role.titleFa } });
   });
 
   app.addHook('onClose', async () => {

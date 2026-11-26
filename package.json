@@ -16,8 +16,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "api:start": "node api/server.js",
-    "test:auth": "node --test api/auth.test.js",
-    "test:auth:fresh": "sh scripts/test-auth.sh"
+    "test:auth": "sh scripts/test-auth.sh",
+    "test:auth:fresh": "npm run test:auth"
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.3.0",

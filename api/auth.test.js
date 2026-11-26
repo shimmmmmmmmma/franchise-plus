@@ -22,27 +22,13 @@ let fixedNow;
 let app;
 
 async function clearFixtures() {
+  // Audit rows and their users are retained because audit_events are append-only.
   await prisma.supportCase.deleteMany();
   await prisma.session.deleteMany();
   await prisma.otpChallenge.deleteMany();
   await prisma.userRole.deleteMany();
-  await prisma.auditEvent.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.role.deleteMany();
 }
 
-async function seedRoleFixtures() {
-  const roles = [
-    ['APPLICANT', 'متقاضی نمایندگی'],
-    ['FRANCHISOR', 'واگذارکننده'],
-    ['VERIFICATION_OFFICER', 'کارشناس احراز'],
-    ['ADMIN', 'مدیر'],
-    ['SUPER_ADMIN', 'مدیرکل'],
-  ];
-  for (const [code, titleFa] of roles) {
-    await prisma.role.create({ data: { code, titleFa, isSystem: true } });
-  }
-}
 
 async function createTestUser(mobileE164, status = 'ACTIVE') {
   return prisma.user.create({
@@ -129,12 +115,17 @@ test.before(async () => {
     expectedMigrations,
     'the test DB must have only completed migrations from this repository applied',
   );
+  const seededRoleCodes = await prisma.role.findMany({ select: { code: true }, orderBy: { code: 'asc' } });
+  assert.deepEqual(
+    seededRoleCodes.map((role) => role.code),
+    ['ADMIN', 'APPLICANT', 'FRANCHISOR', 'SUPER_ADMIN', 'VERIFICATION_OFFICER'],
+    'system roles must come from the repository migration, not a seed step',
+  );
 });
 
 test.beforeEach(async () => {
   fixedNow = new Date(Date.now() + 1_000);
   await clearFixtures();
-  await seedRoleFixtures();
 });
 
 test.after(async () => {
@@ -147,6 +138,9 @@ test('GET /api/me returns 401 without a server-side session', async (t) => {
   const response = await server.inject({ method: 'GET', url: '/api/me' });
   assert.equal(response.statusCode, 401);
   assert.deepEqual(response.json(), { error: 'unauthorized' });
+  const logout = await server.inject({ method: 'POST', url: '/api/auth/logout' });
+  assert.equal(logout.statusCode, 401);
+  assert.deepEqual(logout.json(), { error: 'unauthorized' });
 });
 
 test('Iranian phone formats normalize to E.164 and foreign numbers are rejected', async (t) => {
@@ -267,14 +261,26 @@ test('an expired OTP challenge cannot create a session', async (t) => {
   assert.equal(await prisma.session.count(), 0);
 });
 
-test('a user with exactly one active role receives it as the session active role', async (t) => {
+test('a single role auto-activates and successful login is audited', async (t) => {
   const server = await buildApp(t);
   const otp = await requestOtp(server, '+989121234579');
-  const { cookie } = await establishSession(server, otp);
+  const { response: verified, cookie } = await establishSession(server, otp);
+  const userId = verified.json().userId;
   const me = await server.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
   assert.equal(me.statusCode, 200);
   assert.deepEqual(me.json().roles.map((role) => role.code), ['APPLICANT']);
   assert.equal(me.json().activeRole.code, 'APPLICANT');
+
+  const audit = await prisma.auditEvent.findFirst({
+    where: { action: 'auth.login.success', actorUserId: userId },
+  });
+  assert.ok(audit);
+  assert.equal(audit.entityType, 'User');
+  assert.equal(audit.entityId, userId);
+  assert.equal(audit.actorRoleCode, 'APPLICANT');
+  assert.equal(audit.result, 'SUCCESS');
+  assert.match(audit.ipHash, /^[0-9a-f]{64}$/);
+  assert.match(audit.sessionIdHash, /^[0-9a-f]{64}$/);
 });
 
 test('an existing single-role account keeps and auto-activates its assigned role', async (t) => {
@@ -326,6 +332,15 @@ test('role selection only accepts assigned roles and rejects duplicates', async 
   });
   assert.equal(selected.statusCode, 200);
   assert.equal(selected.json().activeRole.code, 'APPLICANT');
+  const roleAudit = await prisma.auditEvent.findFirst({
+    where: { action: 'auth.active_role.change', actorUserId: userId },
+  });
+  assert.ok(roleAudit);
+  assert.equal(roleAudit.entityType, 'Session');
+  assert.equal(roleAudit.result, 'SUCCESS');
+  assert.match(roleAudit.ipHash, /^[0-9a-f]{64}$/);
+  assert.deepEqual(roleAudit.before, { activeRoleCode: null });
+  assert.deepEqual(roleAudit.after, { activeRoleCode: 'APPLICANT' });
 
   const repeated = await server.inject({
     method: 'POST',
@@ -346,6 +361,31 @@ test('role selection only accepts assigned roles and rejects duplicates', async 
   );
 });
 
+test('logout revokes the server-side session and clears the cookie', async (t) => {
+  const server = await buildApp(t);
+  const otp = await requestOtp(server, '+989121234583');
+  const { response: verified, cookie } = await establishSession(server, otp);
+  const userId = verified.json().userId;
+
+  const logout = await server.inject({
+    method: 'POST',
+    url: '/api/auth/logout',
+    headers: { cookie },
+  });
+  assert.equal(logout.statusCode, 200);
+  assert.deepEqual(logout.json(), { loggedOut: true });
+  assert.match(logout.headers['set-cookie'], /^fp_session=;/);
+  assert.match(logout.headers['set-cookie'], /HttpOnly/i);
+  assert.match(logout.headers['set-cookie'], /SameSite=Lax/i);
+  assert.match(logout.headers['set-cookie'], /Max-Age=0/i);
+
+  const me = await server.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
+  assert.equal(me.statusCode, 401);
+  const session = await prisma.session.findFirst({ where: { userId } });
+  assert.ok(session.revokedAt);
+  assert.equal(session.revokedReason, 'user_logout');
+});
+
 test('failed OTP attempts lock the challenge at the configured limit', async (t) => {
   const server = await buildApp(t, { maxOtpAttempts: 3 });
   const otp = await requestOtp(server, '+989121234581');
@@ -361,6 +401,17 @@ test('failed OTP attempts lock the challenge at the configured limit', async (t)
   const challenge = await prisma.otpChallenge.findUnique({ where: { id: otp.challengeId } });
   assert.equal(challenge.attempts, 3);
   assert.ok(challenge.lockedAt);
+  const failedEvents = await prisma.auditEvent.findMany({
+    where: { action: 'auth.otp.failure', entityId: otp.challengeId },
+  });
+  assert.equal(failedEvents.length, 3);
+  assert.ok(failedEvents.every((event) => event.result === 'FAILURE' && /^[0-9a-f]{64}$/.test(event.ipHash)));
+  const lockEvent = await prisma.auditEvent.findFirst({
+    where: { action: 'auth.otp.locked', entityId: otp.challengeId },
+  });
+  assert.ok(lockEvent);
+  assert.equal(lockEvent.result, 'DENY');
+  assert.match(lockEvent.ipHash, /^[0-9a-f]{64}$/);
   const locked = await verifyOtp(server, otp);
   assert.equal(locked.statusCode, 423);
 });
