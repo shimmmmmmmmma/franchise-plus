@@ -1,10 +1,17 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Crumbs, Notice, SectionHead } from '@/components/ui';
 import { Reveal } from '@/components/reveal';
 import { faNum } from '@/lib/fa';
 
-const receiverSteps = [
-  {
+export const metadata: Metadata = {
+  title: 'چطور کار می‌کند',
+  description:
+    'دو مسیر موازی در فرانچایز پلاس: مسیر گیرندهٔ نمایندگی و مسیر واگذارکننده — از ثبت‌نام و احراز هویت تا تطبیق، مذاکره و ثبت همکاری.',
+  alternates: { canonical: '/how-it-works/' },
+};
+
+const receiverSteps = [  {
     t: 'ثبت‌نام و تأیید شماره',
     b: 'شمارهٔ همراه با رمز یک‌بارمصرف تأیید می‌شود. نشست کاربر روی سرور نگهداری می‌شود، نه در مرورگر.',
   },

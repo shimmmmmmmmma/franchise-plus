@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /* ------------------------------------------------------------------ */
 /* Brand mark — حرف F انگلیسی با علامت + در گوشهٔ پایین                  */
@@ -83,6 +83,14 @@ const navItems = [
 export function SiteHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef(false);
+
+  const closeMenu = (returnFocus = false) => {
+    restoreFocus.current = returnFocus;
+    setMenuOpen(false);
+  };
 
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const isActive = (href: string) => {
@@ -95,26 +103,79 @@ export function SiteHeader() {
     return current === clean || current.startsWith(clean + '/');
   };
 
-  // بستن منو با تغییر مسیر
+  // بستن منو با تغییر مسیر — بدون برگرداندن فوکوس به دکمهٔ منو
   useEffect(() => {
+    restoreFocus.current = false;
     setMenuOpen(false);
   }, [pathname]);
 
-  // قفل اسکرول و بستن با Escape
+  // قفل اسکرول، بستن با Escape، و حصر فوکوس داخل کشو
   useEffect(() => {
     if (!menuOpen) return;
+
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
+    const drawer = drawerRef.current;
+    const focusables = () =>
+      drawer
+        ? Array.from(
+            drawer.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          ).filter((el) => el.tabIndex !== -1)
+        : [];
+
+    // فوکوس اولیه روی اولین لینک کشو
+    const frame = window.requestAnimationFrame(() => {
+      const items = focusables();
+      (items[0] ?? drawer)?.focus({ preventScroll: true });
+    });
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu(true);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const items = focusables();
+      if (!items.length) return;
+
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const inside = active ? drawer?.contains(active) ?? false : false;
+
+      if (!inside) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', onKey);
+
+    document.addEventListener('keydown', onKey);
 
     return () => {
+      window.cancelAnimationFrame(frame);
       document.body.style.overflow = previous;
-      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey);
     };
+  }, [menuOpen]);
+
+  // بازگرداندن فوکوس به دکمهٔ منو پس از بستن آگاهانه (Escape یا دکمهٔ بستن)
+  useEffect(() => {
+    if (menuOpen || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    toggleRef.current?.focus({ preventScroll: true });
   }, [menuOpen]);
 
   return (
@@ -154,11 +215,12 @@ export function SiteHeader() {
 
           <button
             type="button"
+            ref={toggleRef}
             className="menu-toggle"
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
             aria-label={menuOpen ? 'بستن منو' : 'باز کردن منو'}
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => (menuOpen ? closeMenu(true) : setMenuOpen(true))}
           >
             <span className="menu-toggle__bar" aria-hidden="true" />
             <span className="menu-toggle__bar" aria-hidden="true" />
@@ -169,7 +231,18 @@ export function SiteHeader() {
         </div>
       </header>
 
-      <div className="drawer" id="mobile-nav" data-open={menuOpen} aria-hidden={!menuOpen}>
+      <div
+        className="drawer"
+        id="mobile-nav"
+        ref={drawerRef}
+        data-open={menuOpen}
+        role="dialog"
+        aria-modal="true"
+        aria-label="منوی اصلی"
+        aria-hidden={!menuOpen}
+        inert={!menuOpen}
+        tabIndex={-1}
+      >
         <div className="drawer__head container">
           <span className="micro" style={{ letterSpacing: '0.14em', color: 'var(--muted-2)' }}>
             منوی اصلی
@@ -177,7 +250,7 @@ export function SiteHeader() {
           <button
             type="button"
             className="drawer__close"
-            onClick={() => setMenuOpen(false)}
+            onClick={() => closeMenu(true)}
             aria-label="بستن منو"
           >
             ×

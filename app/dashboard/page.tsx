@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PanelShell } from '@/components/panel';
 import { Notice, StatusBadge } from '@/components/ui';
@@ -8,6 +9,13 @@ import {
   verificationTimeline,
 } from '@/lib/data';
 import { faNum } from '@/lib/fa';
+
+export const metadata: Metadata = {
+  title: 'پنل من — خلاصهٔ پرونده',
+  description:
+    'نمای پروندهٔ گیرندهٔ نمایندگی: وضعیت احراز هویت، فرصت‌های هم‌خوان، درخواست‌ها و قدم بعدی.',
+  alternates: { canonical: '/dashboard/' },
+};
 
 const nav = [
   { label: 'خلاصهٔ پرونده', active: true },

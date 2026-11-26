@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getOpportunity, opportunities } from '@/lib/data';
@@ -8,6 +9,21 @@ import { Reveal } from '@/components/reveal';
 
 export function generateStaticParams() {
   return opportunities.map((item) => ({ slug: item.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const item = getOpportunity(slug);
+  if (!item) return { title: 'فرصت پیدا نشد' };
+  return {
+    title: `${item.brand} — فرصت نمایندگی ${item.city}`,
+    description: `${item.brand} در ${item.sector}، ${item.city}: سرمایهٔ اولیه ${item.investment} و حق امتیاز ${item.royalty}. ${item.summary}`,
+    alternates: { canonical: `/opportunities/${item.slug}/` },
+  };
 }
 
 export default async function OpportunityDetail({

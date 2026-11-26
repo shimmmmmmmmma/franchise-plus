@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import '@fontsource-variable/vazirmatn';
 import '@fontsource/estedad/400.css';
 import '@fontsource/estedad/500.css';
@@ -9,10 +9,49 @@ import '@fontsource/gulzar/arabic-400.css';
 import './globals.css';
 import { SiteHeader, SiteFooter } from '@/components/shell';
 
+const siteUrl = 'https://shimmmmmmmmma.github.io/franchise-plus/';
+const siteDescription =
+  'فرانچایز پلاس: مدیریت پرونده، احراز هویت دو طرف، تطبیق متقاضی با فرصت و گفت‌وگوی کنترل‌شده برای واگذاری نمایندگی در ایران.';
+
 export const metadata: Metadata = {
-  title: 'فرانچایز پلاس | پلتفرم واگذاری نمایندگی',
-  description:
-    'فرانچایز پلاس: مدیریت پرونده، احراز هویت دو طرف، تطبیق متقاضی با فرصت و گفت‌وگوی کنترل‌شده برای واگذاری نمایندگی در ایران.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'فرانچایز پلاس | پلتفرم واگذاری نمایندگی',
+    template: '%s | فرانچایز پلاس',
+  },
+  description: siteDescription,
+  applicationName: 'فرانچایز پلاس',
+  keywords: ['فرانچایز', 'واگذاری نمایندگی', 'نمایندگی', 'بازار فرانچایز ایران', 'فرانچایز پلاس'],
+  alternates: { canonical: siteUrl },
+  openGraph: {
+    type: 'website',
+    locale: 'fa_IR',
+    siteName: 'فرانچایز پلاس',
+    title: 'فرانچایز پلاس | پلتفرم واگذاری نمایندگی',
+    description: siteDescription,
+    url: siteUrl,
+    images: [
+      {
+        url: `${siteUrl}og.png`,
+        width: 1200,
+        height: 630,
+        alt: 'فرانچایز پلاس — پلتفرم واگذاری نمایندگی در ایران',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'فرانچایز پلاس | پلتفرم واگذاری نمایندگی',
+    description: siteDescription,
+    images: [`${siteUrl}og.png`],
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#142A3A',
+  colorScheme: 'light',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           پرش به محتوای اصلی
         </a>
         <SiteHeader />
-        <main id="main">{children}</main>
+        <main id="main" tabIndex={-1}>{children}</main>
         <SiteFooter />
       </body>
     </html>

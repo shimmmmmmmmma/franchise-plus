@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="فرانچایز پلاس">
+  <rect width="40" height="40" fill="#142A3A"/>
+  <rect x="0.5" y="0.5" width="39" height="39" fill="none" stroke="#F5F1E9" stroke-opacity="0.4" stroke-width="1"/>
+  <path d="M11 8.5h12.4v2.8h-9.3v5h8.4v2.8h-8.4v11.6H11z" fill="#F5F1E9"/>
+  <path d="M32.6 24.6v9.6M27.8 29.4h9.6" stroke="#CBAC80" stroke-width="2.1" stroke-linecap="round"/>
+</svg>

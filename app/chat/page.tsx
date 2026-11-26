@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PanelShell } from '@/components/panel';
 import { Notice, StatusBadge } from '@/components/ui';
 import { chatMessages } from '@/lib/data';
@@ -22,6 +22,14 @@ type Msg = {
 export default function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>(chatMessages as Msg[]);
   const [draft, setDraft] = useState('');
+  const logRef = useRef<HTMLDivElement>(null);
+
+  // اسکرول به آخرین پیام و اعلام پیام جدید به صفحه‌خوان‌ها (aria-live روی لاگ)
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
 
   const send = () => {
     const text = draft.trim();
@@ -53,7 +61,15 @@ export default function ChatPage() {
             <span className="badge badge--muted">پیام‌ها ثبت می‌شوند</span>
           </div>
 
-          <div className="chat__log">
+          <div
+            className="chat__log"
+            ref={logRef}
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-label="پیام‌های گفت‌وگو"
+            tabIndex={0}
+          >
             {messages.map((m, i) => {
               if (m.kind === 'system') {
                 return (
@@ -84,6 +100,7 @@ export default function ChatPage() {
               placeholder="پیام خود را بنویس… (در این پیش‌نمایش ذخیره نمی‌شود)"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              aria-describedby="draft-help"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -94,6 +111,9 @@ export default function ChatPage() {
             <button type="button" className="btn btn--primary" onClick={send}>
               ارسال
             </button>
+            <p id="draft-help" className="sr-only">
+              با کلید Enter پیام در همین مرورگر ثبت می‌شود و به سروری ارسال نمی‌شود.
+            </p>
           </div>
         </section>
 

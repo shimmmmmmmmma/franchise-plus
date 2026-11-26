@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PanelShell } from '@/components/panel';
 import { Notice, StatusBadge } from '@/components/ui';
 import { adminKpis, adminQueue } from '@/lib/data';
+
+export const metadata: Metadata = {
+  title: 'پنل کارشناسان — صف بررسی',
+  description: 'نمای کارشناس احراز: صف بررسی پرونده‌ها، محدودهٔ دید و اقدام بعدی هر پرونده.',
+  alternates: { canonical: '/panel/admin/' },
+};
 
 const nav = [
   { label: 'صف بررسی', active: true, count: '۵' },

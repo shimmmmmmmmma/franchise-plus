@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PanelShell } from '@/components/panel';
 import { Notice, StatusBadge } from '@/components/ui';
+
+export const metadata: Metadata = {
+  title: 'پنل واگذارکننده — وضعیت پیشنهاد برند',
+  description: 'پیشنهاد برند، بررسی مدارک مالکیت و مجوزها، تأیید برند و انتشار فرصت در فرانچایز پلاس.',
+  alternates: { canonical: '/panel/franchisor/' },
+};
 
 const nav = [
   { label: 'وضعیت پیشنهاد برند', active: true },
