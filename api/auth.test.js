@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { PrismaClient } = require('@prisma/client');
 const { test } = require('node:test');
-const { createServer } = require('./server');
+const { createServer, normalizeIranianMobile } = require('./server');
 const { authorize, DEFAULT_ROLE_PERMISSIONS } = require('./authz');
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -22,6 +22,7 @@ let fixedNow;
 let app;
 
 async function clearFixtures() {
+  await prisma.supportCase.deleteMany();
   await prisma.session.deleteMany();
   await prisma.otpChallenge.deleteMany();
   await prisma.userRole.deleteMany();
@@ -41,6 +42,17 @@ async function seedRoleFixtures() {
   for (const [code, titleFa] of roles) {
     await prisma.role.create({ data: { code, titleFa, isSystem: true } });
   }
+}
+
+async function createTestUser(mobileE164, status = 'ACTIVE') {
+  return prisma.user.create({
+    data: {
+      publicId: `TEST-${crypto.randomBytes(12).toString('hex')}`,
+      mobileE164,
+      status,
+      mobileVerifiedAt: status === 'ACTIVE' ? fixedNow : null,
+    },
+  });
 }
 
 async function buildApp(t, options = {}) {
@@ -63,7 +75,7 @@ async function buildApp(t, options = {}) {
   return app;
 }
 
-async function requestOtp(server, mobileE164 = '+4915112345678') {
+async function requestOtp(server, mobileE164 = '+989121234567') {
   const response = await server.inject({
     method: 'POST',
     url: '/api/auth/request-otp',
@@ -137,6 +149,35 @@ test('GET /api/me returns 401 without a server-side session', async (t) => {
   assert.deepEqual(response.json(), { error: 'unauthorized' });
 });
 
+test('Iranian phone formats normalize to E.164 and foreign numbers are rejected', async (t) => {
+  const expected = '+989121234567';
+  assert.equal(normalizeIranianMobile('۰۹۱۲۱۲۳۴۵۶۷'), expected);
+  assert.equal(normalizeIranianMobile('09121234567'), expected);
+  assert.equal(normalizeIranianMobile('+989121234567'), expected);
+  assert.equal(normalizeIranianMobile('00989121234567'), expected);
+
+  const server = await buildApp(t);
+  const response = await server.inject({
+    method: 'POST',
+    url: '/api/auth/request-otp',
+    payload: { mobileE164: '+4915112345700' },
+  });
+  assert.equal(response.statusCode, 422);
+  assert.deepEqual(response.json(), { error: 'unsupported_country' });
+  assert.equal(await prisma.otpChallenge.count(), 0);
+  assert.equal(server.smsAdapter.getSent().length, 0);
+
+  const normalizedRequest = await server.inject({
+    method: 'POST',
+    url: '/api/auth/request-otp',
+    payload: { mobileE164: '۰۹۱۲۱۲۳۴۵۶۷' },
+  });
+  assert.equal(normalizedRequest.statusCode, 201);
+  const challenge = await prisma.otpChallenge.findUnique({ where: { id: normalizedRequest.json().challengeId } });
+  assert.equal(challenge.mobileE164, expected);
+  assert.equal(server.smsAdapter.getSent()[0].mobileE164, expected);
+});
+
 test('the shared RBAC guard rejects a permission not granted by the active role', async () => {
   let statusCode = 200;
   let body;
@@ -154,7 +195,7 @@ test('the shared RBAC guard rejects a permission not granted by the active role'
   assert.deepEqual(body, { error: 'forbidden' });
 });
 
-test('the shared RBAC guard checks franchise ownership and expert assignment', async () => {
+test('shared RBAC checks ownership and expert assignment against a persisted support_cases row', async () => {
   function replyRecorder() {
     return {
       statusCode: 200,
@@ -164,44 +205,53 @@ test('the shared RBAC guard checks franchise ownership and expert assignment', a
     };
   }
 
-  const request = {
-    auth: { userId: 'owner-1', activeRole: { code: 'FRANCHISOR' } },
-    server: {
-      rolePermissions: DEFAULT_ROLE_PERMISSIONS,
-      prisma: {
-        franchise: { findUnique: async () => ({ ownerUserId: 'owner-1' }) },
-        supportCase: { findUnique: async () => ({ expertUserId: 'expert-1' }) },
-      },
+  const owner = await createTestUser('+989111111111');
+  const assignedExpert = await createTestUser('+989111111112');
+  const otherExpert = await createTestUser('+989111111113');
+  const applicantRole = await prisma.role.findUnique({ where: { code: 'APPLICANT' } });
+  const officerRole = await prisma.role.findUnique({ where: { code: 'VERIFICATION_OFFICER' } });
+  await prisma.userRole.create({ data: { userId: owner.id, roleId: applicantRole.id } });
+  await prisma.userRole.create({ data: { userId: assignedExpert.id, roleId: officerRole.id } });
+  await prisma.userRole.create({ data: { userId: otherExpert.id, roleId: applicantRole.id } });
+  await prisma.userRole.create({ data: { userId: otherExpert.id, roleId: officerRole.id } });
+
+  const supportCase = await prisma.supportCase.create({
+    data: {
+      publicId: `CASE-${crypto.randomBytes(10).toString('hex')}`,
+      ownerUserId: owner.id,
+      expertUserId: assignedExpert.id,
     },
-  };
+  });
+  const makeRequest = (userId, activeRole) => ({
+    auth: { userId, activeRole },
+    server: { rolePermissions: DEFAULT_ROLE_PERMISSIONS, prisma },
+  });
+
   const ownerReply = replyRecorder();
-  assert.equal(await authorize(request, ownerReply, {
-    permission: 'franchise:read:own',
-    ownership: { model: 'franchise', id: 'franchise-1' },
+  assert.equal(await authorize(makeRequest(owner.id, applicantRole), ownerReply, {
+    permission: 'case:read:own',
+    ownership: { model: 'supportCase', id: supportCase.id, ownerField: 'ownerUserId' },
   }), true);
 
-  request.auth = { userId: 'other-1', activeRole: { code: 'FRANCHISOR' } };
-  const ownerDeniedReply = replyRecorder();
-  assert.equal(await authorize(request, ownerDeniedReply, {
-    permission: 'franchise:read:own',
-    ownership: { model: 'franchise', id: 'franchise-1' },
+  const otherOwnerReply = replyRecorder();
+  assert.equal(await authorize(makeRequest(otherExpert.id, applicantRole), otherOwnerReply, {
+    permission: 'case:read:own',
+    ownership: { model: 'supportCase', id: supportCase.id, ownerField: 'ownerUserId' },
   }), false);
-  assert.equal(ownerDeniedReply.statusCode, 403);
+  assert.equal(otherOwnerReply.statusCode, 403);
 
-  request.auth = { userId: 'expert-1', activeRole: { code: 'VERIFICATION_OFFICER' } };
-  const expertReply = replyRecorder();
-  assert.equal(await authorize(request, expertReply, {
+  const assignedReply = replyRecorder();
+  assert.equal(await authorize(makeRequest(assignedExpert.id, officerRole), assignedReply, {
     permission: 'case:read:assigned',
-    expertAssignment: { model: 'supportCase', id: 'case-1' },
+    expertAssignment: { model: 'supportCase', id: supportCase.id, expertField: 'expertUserId' },
   }), true);
 
-  request.auth = { userId: 'other-1', activeRole: { code: 'VERIFICATION_OFFICER' } };
-  const deniedReply = replyRecorder();
-  assert.equal(await authorize(request, deniedReply, {
+  const unassignedReply = replyRecorder();
+  assert.equal(await authorize(makeRequest(otherExpert.id, officerRole), unassignedReply, {
     permission: 'case:read:assigned',
-    expertAssignment: { model: 'supportCase', id: 'case-1' },
+    expertAssignment: { model: 'supportCase', id: supportCase.id, expertField: 'expertUserId' },
   }), false);
-  assert.equal(deniedReply.statusCode, 403);
+  assert.equal(unassignedReply.statusCode, 403);
 });
 
 test('an expired OTP challenge cannot create a session', async (t) => {
@@ -217,11 +267,47 @@ test('an expired OTP challenge cannot create a session', async (t) => {
   assert.equal(await prisma.session.count(), 0);
 });
 
-test('an unassigned role is forbidden; assigning an already-active role is rejected', async (t) => {
+test('a user with exactly one active role receives it as the session active role', async (t) => {
   const server = await buildApp(t);
-  const otp = await requestOtp(server, '+4915112345680');
+  const otp = await requestOtp(server, '+989121234579');
+  const { cookie } = await establishSession(server, otp);
+  const me = await server.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
+  assert.equal(me.statusCode, 200);
+  assert.deepEqual(me.json().roles.map((role) => role.code), ['APPLICANT']);
+  assert.equal(me.json().activeRole.code, 'APPLICANT');
+});
+
+test('an existing single-role account keeps and auto-activates its assigned role', async (t) => {
+  const server = await buildApp(t);
+  const mobileE164 = '+989121234578';
+  const franchisorRole = await prisma.role.findUnique({ where: { code: 'FRANCHISOR' } });
+  const user = await createTestUser(mobileE164);
+  await prisma.userRole.create({ data: { userId: user.id, roleId: franchisorRole.id } });
+
+  const otp = await requestOtp(server, mobileE164);
+  const { cookie } = await establishSession(server, otp);
+  const me = await server.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
+  assert.equal(me.statusCode, 200);
+  assert.deepEqual(me.json().roles.map((role) => role.code), ['FRANCHISOR']);
+  assert.equal(me.json().activeRole.code, 'FRANCHISOR');
+  assert.equal(await prisma.userRole.count({ where: { userId: user.id, revokedAt: null } }), 1);
+});
+
+test('role selection only accepts assigned roles and rejects duplicates', async (t) => {
+  const server = await buildApp(t);
+  const mobileE164 = '+989121234580';
+  const applicantRole = await prisma.role.findUnique({ where: { code: 'APPLICANT' } });
+  const franchisorRole = await prisma.role.findUnique({ where: { code: 'FRANCHISOR' } });
+  const user = await createTestUser(mobileE164, 'PENDING_PHONE');
+  await prisma.userRole.create({ data: { userId: user.id, roleId: applicantRole.id } });
+  await prisma.userRole.create({ data: { userId: user.id, roleId: franchisorRole.id } });
+
+  const otp = await requestOtp(server, mobileE164);
   const { response: verified, cookie } = await establishSession(server, otp);
   const userId = verified.json().userId;
+  const me = await server.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
+  assert.equal(me.statusCode, 200);
+  assert.equal(me.json().activeRole, null, 'multiple assigned roles require a selection');
 
   const unassigned = await server.inject({
     method: 'POST',
@@ -251,19 +337,18 @@ test('an unassigned role is forbidden; assigning an already-active role is rejec
   assert.deepEqual(repeated.json(), { error: 'role_already_active' });
 
   const userRole = await prisma.userRole.findFirst({
-    where: { userId, revokedAt: null },
-    include: { role: true },
+    where: { userId, revokedAt: null, role: { code: 'APPLICANT' } },
   });
-  assert.equal(userRole.role.code, 'APPLICANT');
+  assert.ok(userRole);
   await assert.rejects(
-    prisma.userRole.create({ data: { userId, roleId: userRole.roleId } }),
+    prisma.userRole.create({ data: { userId, roleId: applicantRole.id } }),
     (error) => error.code === 'P2002',
   );
 });
 
 test('failed OTP attempts lock the challenge at the configured limit', async (t) => {
   const server = await buildApp(t, { maxOtpAttempts: 3 });
-  const otp = await requestOtp(server, '+4915112345681');
+  const otp = await requestOtp(server, '+989121234581');
   const wrongCode = otp.code === '000000' ? '000001' : '000000';
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     const response = await server.inject({
@@ -285,12 +370,12 @@ test('request-otp applies a simple per-IP and per-number rate limit', async (t) 
   const first = await server.inject({
     method: 'POST',
     url: '/api/auth/request-otp',
-    payload: { mobileE164: '+4915112345682' },
+    payload: { mobileE164: '+989121234582' },
   });
   const second = await server.inject({
     method: 'POST',
     url: '/api/auth/request-otp',
-    payload: { mobileE164: '+4915112345682' },
+    payload: { mobileE164: '+989121234582' },
   });
   assert.equal(first.statusCode, 201);
   assert.equal(second.statusCode, 429);

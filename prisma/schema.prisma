@@ -41,10 +41,12 @@ model User {
   updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt        DateTime?  @map("deleted_at") @db.Timestamptz(3)
 
-  roles        UserRole[]   @relation("AssignedRoles")
-  grantedRoles UserRole[]   @relation("RoleGrantor")
-  sessions     Session[]
-  auditEvents  AuditEvent[] @relation("AuditActor")
+  roles                UserRole[]    @relation("AssignedRoles")
+  grantedRoles         UserRole[]    @relation("RoleGrantor")
+  sessions             Session[]
+  auditEvents          AuditEvent[]  @relation("AuditActor")
+  ownedSupportCases    SupportCase[] @relation("SupportCaseOwner")
+  assignedSupportCases SupportCase[] @relation("SupportCaseExpert")
 
   @@index([status])
   @@index([deletedAt])
@@ -160,4 +162,20 @@ model Industry {
   @@index([parentId, sortOrder])
   @@index([isActive])
   @@map("industries")
+}
+
+model SupportCase {
+  id           String   @id @default(uuid()) @db.Uuid
+  publicId     String   @unique @map("public_id") @db.VarChar(32)
+  ownerUserId  String   @map("owner_user_id") @db.Uuid
+  expertUserId String?  @map("expert_user_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner  User  @relation("SupportCaseOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  expert User? @relation("SupportCaseExpert", fields: [expertUserId], references: [id], onDelete: SetNull)
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([expertUserId, createdAt(sort: Desc)])
+  @@map("support_cases")
 }

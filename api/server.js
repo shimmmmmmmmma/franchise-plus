@@ -13,8 +13,25 @@ const SESSION_COOKIE = 'fp_session';
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
-const E164_RE = /^\+[1-9][0-9]{7,14}$/;
+const IRAN_E164_RE = /^\+989\d{9}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeIranianMobile(value) {
+  if (typeof value !== 'string') return null;
+  let normalized = value
+    .trim()
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\s()-]/g, '');
+
+  if (/^09\d{9}$/.test(normalized)) {
+    normalized = `+98${normalized.slice(1)}`;
+  } else if (/^0098/.test(normalized)) {
+    normalized = `+98${normalized.slice(4)}`;
+  }
+
+  return IRAN_E164_RE.test(normalized) ? normalized : null;
+}
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -172,10 +189,10 @@ async function createServer(options = {}) {
     reply.header('cache-control', 'no-store');
 
     const body = request.body && typeof request.body === 'object' ? request.body : {};
-    const mobileE164 = body.mobileE164;
+    const mobileE164 = normalizeIranianMobile(body.mobileE164);
     const purpose = body.purpose ?? 'LOGIN';
-    if (typeof mobileE164 !== 'string' || !E164_RE.test(mobileE164)) {
-      return reply.code(400).send({ error: 'invalid_mobile_e164' });
+    if (!mobileE164) {
+      return reply.code(422).send({ error: 'unsupported_country' });
     }
     if (!['LOGIN', 'SIGNUP'].includes(purpose)) {
       return reply.code(400).send({ error: 'invalid_otp_purpose' });
@@ -290,11 +307,10 @@ async function createServer(options = {}) {
         });
         if (consumed.count !== 1) return { error: 'challenge_state_changed' };
 
-        const defaultRole = await tx.role.findUnique({ where: { code: 'APPLICANT' } });
-        if (!defaultRole) return { error: 'system_roles_not_seeded' };
-
         let user = await tx.user.findUnique({ where: { mobileE164: challenge.mobileE164 } });
         if (!user) {
+          const applicantRole = await tx.role.findUnique({ where: { code: 'APPLICANT' } });
+          if (!applicantRole) return { error: 'system_roles_not_seeded' };
           user = await tx.user.create({
             data: {
               publicId: newPublicId(),
@@ -303,6 +319,7 @@ async function createServer(options = {}) {
               mobileVerifiedAt: current,
             },
           });
+          await tx.userRole.create({ data: { userId: user.id, roleId: applicantRole.id } });
         } else if (user.deletedAt || ['SUSPENDED', 'CLOSED'].includes(user.status)) {
           return { error: 'account_unavailable' };
         } else if (user.status === 'PENDING_PHONE' || !user.mobileVerifiedAt) {
@@ -315,16 +332,17 @@ async function createServer(options = {}) {
           });
         }
 
-        const membership = await tx.userRole.findFirst({
-          where: { userId: user.id, roleId: defaultRole.id, revokedAt: null },
+        const activeMemberships = await tx.userRole.findMany({
+          where: { userId: user.id, revokedAt: null },
+          select: { roleId: true },
         });
-        if (!membership) {
-          await tx.userRole.create({ data: { userId: user.id, roleId: defaultRole.id } });
-        }
+        if (activeMemberships.length === 0) return { error: 'roles_not_assigned' };
+        const initialActiveRoleId = activeMemberships.length === 1 ? activeMemberships[0].roleId : null;
 
         const session = await tx.session.create({
           data: {
             userId: user.id,
+            activeRoleId: initialActiveRoleId,
             tokenHash: sessionTokenHash,
             ipHash: sha256(String(request.ip)),
             userAgent: typeof request.headers['user-agent'] === 'string'
@@ -345,7 +363,7 @@ async function createServer(options = {}) {
     if (result.error === 'system_roles_not_seeded') {
       return reply.code(503).send({ error: result.error });
     }
-    if (result.error === 'account_unavailable') {
+    if (result.error === 'account_unavailable' || result.error === 'roles_not_assigned') {
       return reply.code(403).send({ error: result.error });
     }
 
@@ -433,6 +451,7 @@ if (require.main === module) {
 
 module.exports = {
   createServer,
+  normalizeIranianMobile,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   OTP_TTL_MS,
